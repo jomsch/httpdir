@@ -4,6 +4,9 @@ extern crate log;
 use async_std::fs;
 use async_std::prelude::*;
 
+use futures::future;
+use futures::StreamExt;
+
 const PORT: u32 = 8888;
 const SERVE_DIR_PATH: &str = ".";
 const SERVE_DIR_ROUTE: &str = "/httpdir";
@@ -35,17 +38,17 @@ async fn serve_dir_at_route(req: tide::Request<()>) -> tide::Result<tide::Respon
         _ => return Ok(tide::Response::new(404)),
     };
 
-    let mut entries = fs::read_dir(&dir_path).await?;
+    let entries = fs::read_dir(&dir_path).await?;
+    let entries: Vec<_> = entries.filter_map(|e| async { e.ok() }).collect().await;
     let mut entries_html = String::new();
 
-    while let Some(res) = entries.next().await {
-        let entry = res?;
+    for entry in entries {
         let file_name: String = entry.file_name().to_string_lossy().into();
         let metadata = entry.metadata().await?;
         let src = if metadata.is_dir() {
             format!("/{}", file_name)
         } else {
-            format!("{}{}{}", SERVE_DIR_ROUTE, url_path, file_name)
+            format!("{}{}/{}", SERVE_DIR_ROUTE, url_path, file_name)
         };
 
         entries_html.push_str(&format!("<li><a href={}>{}</a></li>", src, file_name));
