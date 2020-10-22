@@ -1,6 +1,8 @@
 extern crate env_logger;
 extern crate log;
 
+use crate::args::Opt;
+
 use async_std::fs;
 use futures::StreamExt;
 
@@ -8,7 +10,9 @@ const PORT: u32 = 8888;
 const SERVE_DIR_PATH: &str = ".";
 const SERVE_DIR_ROUTE: &str = "/httpdir";
 
-pub async fn run() -> tide::Result<()> {
+pub async fn run(opt: Opt) -> tide::Result<()> {
+    log::info!("{:#?}", &opt);
+
     let mut app = tide::new();
     app.at("/").get(serve_dir_at_route);
     app.at("/*").get(serve_dir_at_route);
