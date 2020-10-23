@@ -1,12 +1,11 @@
-use std::path::PathBuf;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
-#[structopt(name="httpdir", about="Serve a direcotry over http")]
+#[structopt(name = "httpdir", about = "Serve a direcotry over http")]
 pub struct Opt {
-    #[structopt(parse(from_os_str), default_value="./")]
-    dir: PathBuf,
+    #[structopt(default_value = "./")]
+    pub dir: String,
 
-    #[structopt(short="p", long="port", default_value="8888")]
-    port: u32,
+    #[structopt(short = "p", long = "port", default_value = "8888")]
+    pub port: u32,
 }

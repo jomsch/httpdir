@@ -1,12 +1,11 @@
 extern crate env_logger;
 extern crate log;
 
-
-mod httpdir;
 mod args;
+mod httpdir;
 
-use structopt::StructOpt;
 use args::Opt;
+use structopt::StructOpt;
 
 #[async_std::main]
 async fn main() -> tide::Result<()> {
