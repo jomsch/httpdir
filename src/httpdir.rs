@@ -2,9 +2,10 @@ extern crate env_logger;
 extern crate log;
 
 use crate::args::Opt;
+use crate::dir::{Directory, MetaFile};
 
 use async_std::fs;
-use futures::StreamExt;
+use futures::stream::TryStreamExt;
 
 const SERVE_DIR_PATH: &str = ".";
 const SERVE_DIR_ROUTE: &str = "/httpdir";
@@ -46,19 +47,31 @@ async fn serve_dir_at_route(req: tide::Request<State>) -> tide::Result<tide::Res
     };
 
     let entries = fs::read_dir(&dir_path).await?;
-    let entries: Vec<_> = entries.filter_map(|e| async { e.ok() }).collect().await;
-    let mut entries_html = String::new();
+    let directory: Directory = entries
+        .try_fold(Directory::default(), |mut acc, e| async {
+            let metafile = MetaFile::try_from(e).await?;
+            acc.push(metafile);
+            Ok(acc)
+        })
+        .await?;
 
-    for entry in entries {
-        let file_name: String = entry.file_name().to_string_lossy().into();
-        let metadata = entry.metadata().await?;
-        let src = if metadata.is_dir() {
-            format!("/{}", file_name)
+    let mut entries_html = String::new();
+    for file in directory {
+        let (src, style) = if file.is_dir() {
+            (format!("/{}", file.name()), "FOLDER:")
         } else {
-            format!("{}{}/{}", SERVE_DIR_ROUTE, url_path, file_name)
+            (
+                format!("{}{}/{}", SERVE_DIR_ROUTE, url_path, file.name()),
+                "FILE:  ",
+            )
         };
 
-        entries_html.push_str(&format!("<li><a href={}>{}</a></li>", src, file_name));
+        entries_html.push_str(&format!(
+            "<li><a href={}>{}{}</a></li>",
+            src,
+            style,
+            file.name()
+        ));
     }
 
     let body = format!("<ul>{}</ul>", entries_html);

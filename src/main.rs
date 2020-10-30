@@ -2,6 +2,7 @@ extern crate env_logger;
 extern crate log;
 
 mod args;
+mod dir;
 mod httpdir;
 
 use args::Opt;
