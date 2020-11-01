@@ -72,7 +72,8 @@ async fn serve_dir_at_route(req: tide::Request<State>) -> tide::Result<tide::Res
     let mut entries_html = String::new();
     for file in directory {
         let (src, style) = if file.is_dir() {
-            (format!("/{}", file.name()), "FOLDER:")
+            let sep  = if url_path == &"/" { "" } else {"/"};
+            (format!("{}{}{}",url_path,sep, file.name()), "FOLDER:")
         } else {
             (
                 format!("{}{}/{}", SERVE_DIR_ROUTE, url_path, file.name()),
