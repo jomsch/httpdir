@@ -10,6 +10,31 @@ use futures::stream::TryStreamExt;
 const SERVE_DIR_PATH: &str = ".";
 const SERVE_DIR_ROUTE: &str = "/httpdir";
 
+const HEAD: &str = "
+<head>
+<style>
+
+ul {
+	list-style-type: none;
+	font-size: 30px;
+}
+
+li.directory:before { 
+	content: '\\1F4C2'; 
+	margin-left: -20px; 
+	margin-right: 10px; 
+} 
+
+
+li.file:before { 
+	content: '\\1F5CB';
+	margin-left: -20px; 
+	margin-right: 10px; 
+} 
+</style>
+</head>
+";
+
 #[derive(Clone)]
 struct State {
     root_path: String,
@@ -73,25 +98,25 @@ async fn serve_dir_at_route(req: tide::Request<State>) -> tide::Result<tide::Res
     for file in directory {
         let (src, style) = if file.is_dir() {
             let sep  = if url_path == &"/" { "" } else {"/"};
-            (format!("{}{}{}",url_path,sep, file.name()), "FOLDER:")
+            (format!("{}{}{}",url_path,sep, file.name()), "directory")
         } else {
             (
                 format!("{}{}/{}", SERVE_DIR_ROUTE, url_path, file.name()),
-                "FILE:  ",
+                "file",
             )
         };
 
         entries_html.push_str(&format!(
-            "<li><a href={}>{}{}</a></li>",
-            src,
+            "<li class=\"{}\"><a href={}>{}</a></li>",
             style,
+            src,
             file.name()
         ));
     }
 
-    let body = format!("<ul>{}</ul>", entries_html);
+    let html = format!("<html>{}<body><ul>{}</ul></body></html>",HEAD, entries_html);
 
-    response.set_body(body);
+    response.set_body(html);
 
     Ok(response)
 }
