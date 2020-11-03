@@ -11,8 +11,8 @@ pub struct MetaFile {
 }
 
 impl MetaFile {
-
     // Helper function for testing purpose.
+    #[allow(dead_code)]
     fn new<S: ToString>(name: S, is_dir: bool) -> Self {
         Self {
             file_name: name.to_string(),
@@ -46,13 +46,18 @@ pub enum FileGrouping {
 
 impl std::str::FromStr for FileGrouping {
     type Err = clap::Error;
-    
+
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let order = match s {
-            "directories" => FileGrouping::DirectoriesFirst, 
+            "directories" => FileGrouping::DirectoriesFirst,
             "files" => FileGrouping::FilesFirst,
             "none" => FileGrouping::Mixed,
-            _ => return Err(clap::Error::with_description("Could not parse value", clap::ErrorKind::InvalidValue))
+            _ => {
+                return Err(clap::Error::with_description(
+                    "Could not parse value",
+                    clap::ErrorKind::InvalidValue,
+                ))
+            }
         };
 
         Ok(order)
@@ -62,7 +67,7 @@ impl std::str::FromStr for FileGrouping {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FileSort {
     Alphabetical,
-    RevAlphabetical
+    RevAlphabetical,
 }
 
 impl std::str::FromStr for FileSort {
@@ -72,7 +77,12 @@ impl std::str::FromStr for FileSort {
         let sort = match s {
             "atoz" => FileSort::Alphabetical,
             "ztoa" => FileSort::RevAlphabetical,
-            _ => return Err(clap::Error::with_description("Could not parse value", clap::ErrorKind::InvalidValue))
+            _ => {
+                return Err(clap::Error::with_description(
+                    "Could not parse value",
+                    clap::ErrorKind::InvalidValue,
+                ))
+            }
         };
 
         Ok(sort)
@@ -98,68 +108,43 @@ impl Default for Directory {
     }
 }
 
-struct DirectoryVector  {
-    dirs: Vec<MetaFile>,
-    files: Vec<MetaFile>,
-    seperator_idx: usize,
-}
-
-
 // Function for weighted compare of MetaFiles
 fn compare(a: &MetaFile, b: &MetaFile, order: &FileGrouping, sort: &FileSort) -> Ordering {
-    let sort_cmp = || {
-        match sort {
-            FileSort::Alphabetical => a.name() < b.name(),
-            FileSort::RevAlphabetical => a.name() > b.name()
-        }
+    let sort_cmp = || match sort {
+        FileSort::Alphabetical => a.name() < b.name(),
+        FileSort::RevAlphabetical => a.name() > b.name(),
     };
-    
+
     match order {
         FileGrouping::DirectoriesFirst if (b.is_dir() && !a.is_dir()) => Ordering::Greater,
-        FileGrouping::DirectoriesFirst if (a.is_dir() && !b.is_dir()) =>  Ordering::Less, 
+        FileGrouping::DirectoriesFirst if (a.is_dir() && !b.is_dir()) => Ordering::Less,
         FileGrouping::FilesFirst if (!b.is_dir() && a.is_dir()) => Ordering::Greater,
         FileGrouping::FilesFirst if (!a.is_dir() && b.is_dir()) => Ordering::Less,
-        _ if sort_cmp() => Ordering::Less, 
-        _ => Ordering::Greater
+        _ if sort_cmp() => Ordering::Less,
+        _ => Ordering::Greater,
     }
 }
 
 impl Directory {
-
     pub fn new(order: FileGrouping, sort: FileSort, include_dotfiles: bool) -> Self {
         Self {
             files: Vec::new(),
             order,
             sort,
-            include_dotfiles
+            include_dotfiles,
         }
     }
-
 
     // insert the MetaFile to the position depending on DirOrder and FileSort
     pub fn push(&mut self, file: MetaFile) {
-        if !self.include_dotfiles && file.name().starts_with('.'){
-            return
+        if !self.include_dotfiles && file.name().starts_with('.') {
+            return;
         }
 
         self.files.push(file);
-        let order = self.order.clone();
-        let sort = self.sort.clone();
+        let order = self.order;
+        let sort = self.sort;
         self.files.sort_by(move |a, b| compare(a, b, &order, &sort));
-
-    }
-
-    pub fn get(&self, index: usize) -> Option<&MetaFile> {
-        self.files.get(index) 
-    }
-
-    pub fn len(&self) -> usize {
-            self.files.len()
-    }
-
-
-    pub fn include_dotfiles(&mut self, b: bool) {
-        self.include_dotfiles = b;
     }
 }
 
@@ -186,7 +171,6 @@ mod test {
         assert_eq!(compare(&b, &a, &order, &sort), Ordering::Greater);
     }
 
-
     #[test]
     fn test_compare_rev_alpha() {
         let a = MetaFile::new("AAA", false);
@@ -206,7 +190,7 @@ mod test {
         assert_eq!(compare(&a, &b, &order, &sort), Ordering::Less);
         assert_eq!(compare(&b, &a, &order, &sort), Ordering::Greater);
     }
-    
+
     #[test]
     fn test_compare_directory_first() {
         let a = MetaFile::new("AAA", false);

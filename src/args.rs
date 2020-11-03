@@ -1,5 +1,5 @@
-use structopt::StructOpt;
 use crate::dir;
+use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "httpdir", about = "Serve a direcotry over http")]

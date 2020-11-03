@@ -2,7 +2,7 @@ extern crate env_logger;
 extern crate log;
 
 use crate::args::Opt;
-use crate::dir::{Directory, MetaFile, FileGrouping, FileSort};
+use crate::dir::{Directory, FileGrouping, FileSort, MetaFile};
 
 use async_std::fs;
 use futures::stream::TryStreamExt;
@@ -10,46 +10,26 @@ use futures::stream::TryStreamExt;
 const SERVE_DIR_PATH: &str = ".";
 const SERVE_DIR_ROUTE: &str = "/httpdir";
 
-const HEAD: &str = "
-<head>
-<style>
-
-ul {
-	list-style-type: none;
-	font-size: 30px;
-}
-
-li.directory:before { 
-	content: '\\1F4C2'; 
-	margin-left: -20px; 
-	margin-right: 10px; 
-} 
-
-
-li.file:before { 
-	content: '\\1F5CB';
-	margin-left: -20px; 
-	margin-right: 10px; 
-} 
-</style>
-</head>
-";
-
 #[derive(Clone)]
 struct State {
     root_path: String,
     show_dotfiles: bool,
     file_sort: FileSort,
     file_grouping: FileGrouping,
-
 }
 
 pub async fn run(opt: Opt) -> tide::Result<()> {
     log::info!("Serving dir {}", &opt.dir);
 
-    let Opt { port, dir, show_dotfiles, sort, group_by } = opt;
-    let state = State { 
-        root_path: dir, 
+    let Opt {
+        port,
+        dir,
+        show_dotfiles,
+        sort,
+        group_by,
+    } = opt;
+    let state = State {
+        root_path: dir,
         file_sort: sort,
         file_grouping: group_by,
         show_dotfiles,
@@ -68,7 +48,12 @@ pub async fn run(opt: Opt) -> tide::Result<()> {
 
 async fn serve_dir_at_route(req: tide::Request<State>) -> tide::Result<tide::Response> {
     log::info!("URL PATH: {}", &req.url());
-    let State { root_path, file_grouping, file_sort, show_dotfiles } = &req.state();
+    let State {
+        root_path,
+        file_grouping,
+        file_sort,
+        show_dotfiles,
+    } = &req.state();
     let root_path = &req.state().root_path;
 
     let url_path = &req.url().path();
@@ -83,22 +68,19 @@ async fn serve_dir_at_route(req: tide::Request<State>) -> tide::Result<tide::Res
 
     let entries = fs::read_dir(&dir_path).await?;
     let dir = Directory::new(*file_grouping, *file_sort, *show_dotfiles);
-    let mut directory: Directory = entries
+    let directory: Directory = entries
         .try_fold(dir, |mut acc, e| async {
             let metafile = MetaFile::try_from(e).await?;
             acc.push(metafile);
             Ok(acc)
         })
         .await?;
-    directory.include_dotfiles(req.state().show_dotfiles);
-    //directory.order_and_sort();
-    
 
     let mut entries_html = String::new();
     for file in directory {
         let (src, style) = if file.is_dir() {
-            let sep  = if url_path == &"/" { "" } else {"/"};
-            (format!("{}{}{}",url_path,sep, file.name()), "directory")
+            let sep = if url_path == &"/" { "" } else { "/" };
+            (format!("{}{}{}", url_path, sep, file.name()), "directory")
         } else {
             (
                 format!("{}{}/{}", SERVE_DIR_ROUTE, url_path, file.name()),
@@ -114,9 +96,8 @@ async fn serve_dir_at_route(req: tide::Request<State>) -> tide::Result<tide::Res
         ));
     }
 
-    let html = format!("<html>{}<body><ul>{}</ul></body></html>",HEAD, entries_html);
+    let html = format!("<html><body><ul>{}</ul></body></html>", entries_html);
 
     response.set_body(html);
-
     Ok(response)
 }
