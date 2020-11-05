@@ -4,6 +4,7 @@ extern crate log;
 mod args;
 mod dir;
 mod httpdir;
+mod path;
 
 use args::Opt;
 use structopt::StructOpt;

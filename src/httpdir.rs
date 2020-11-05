@@ -1,10 +1,13 @@
 extern crate env_logger;
 extern crate log;
 
+use std::future::Future;
 use std::path::Path;
+use std::pin::Pin;
 
 use crate::args::Opt;
 use crate::dir::{Directory, FileGrouping, FileSort, MetaFile};
+use crate::path::CombinePath;
 
 use async_std::fs;
 use futures::stream::TryStreamExt;
@@ -20,12 +23,6 @@ struct State {
     show_dotfiles: bool,
     file_sort: FileSort,
     file_grouping: FileGrouping,
-}
-
-impl State {
-    fn root_path(&self) -> &str {
-        &self.root_path
-    }
 }
 
 pub async fn run(opt: Opt) -> tide::Result<()> {
@@ -46,11 +43,7 @@ pub async fn run(opt: Opt) -> tide::Result<()> {
     };
 
     let mut app = tide::with_state(state);
-    app.at("/test").get(|_| async {
-        let mut res = tide::Response::new(tide::StatusCode::Ok);
-        res.set_body(tide::Body::from_file("./test.html").await?);
-        Ok(res)
-    });
+    app.with(directory_checker);
     app.at("/").get(serve_dir_at_route).post(upload_file);
     app.at("/*").get(serve_dir_at_route).post(upload_file);
 
@@ -62,27 +55,18 @@ pub async fn run(opt: Opt) -> tide::Result<()> {
 }
 
 async fn serve_dir_at_route(req: tide::Request<State>) -> tide::Result<tide::Response> {
-    log::info!("URL PATH: {}", &req.url());
+    let cpath: &CombinePath = req.ext().unwrap();
+
+    log::info!("URL PATH: {}", cpath.url_path());
+
     let State {
         root_path,
         file_grouping,
         file_sort,
         show_dotfiles,
     } = &req.state();
-    let root_path = &req.state().root_path;
 
-    let url_path = &req.url().path();
-    let dir_path = format!("{}{}", root_path, url_path.trim_start_matches('/'));
-
-
-    let mut response = match fs::metadata(&dir_path).await {
-        Ok(md) if md.is_dir() => tide::Response::builder(200)
-            .content_type(tide::http::mime::HTML)
-            .build(),
-        _ => return Ok(tide::Response::new(404)),
-    };
-
-    let entries = fs::read_dir(&dir_path).await?;
+    let entries = fs::read_dir(cpath.dir_path()).await?;
     let dir = Directory::new(*file_grouping, *file_sort, *show_dotfiles);
     let directory: Directory = entries
         .try_fold(dir, |mut acc, e| async {
@@ -95,11 +79,10 @@ async fn serve_dir_at_route(req: tide::Request<State>) -> tide::Result<tide::Res
     let mut entries_html = String::new();
     for file in directory {
         let (src, style) = if file.is_dir() {
-            let sep = if url_path == &"/" { "" } else { "/" };
-            (format!("{}{}{}", url_path, sep, file.name()), "directory")
+            (format!("{}{}", cpath.url_path(), file.name()), "directory")
         } else {
             (
-                format!("{}{}/{}", SERVE_DIR_ROUTE, url_path, file.name()),
+                format!("{}{}{}", SERVE_DIR_ROUTE, cpath.url_path(), file.name()),
                 "file",
             )
         };
@@ -114,35 +97,22 @@ async fn serve_dir_at_route(req: tide::Request<State>) -> tide::Result<tide::Res
 
     let html = INDEX_HTML.replace("{LIST}", &entries_html);
 
-    response.set_body(html);
+    let response = tide::Response::builder(tide::StatusCode::Ok)
+        .content_type(tide::http::mime::HTML)
+        .body(html)
+        .build();
     Ok(response)
 }
 
-
 async fn upload_file(req: tide::Request<State>) -> tide::Result<tide::Response> {
-
-
-    let root_path = req.state().root_path().clone();
-    let url_path: String = req.url().path().to_string();
-    let mut dir_path = format!("{}{}", root_path, url_path.trim_start_matches('/'));
-    if !dir_path.ends_with('/') {
-        dir_path.push('/'); 
-    }
-
-    let mut response = match fs::metadata(&dir_path).await {
-        Ok(md) if md.is_dir() => tide::Response::builder(200)
-            .content_type(tide::http::mime::HTML)
-            .build(),
-        _ => return Ok(tide::Response::new(404)),
-    };
+    let cpath: &CombinePath = req.ext().unwrap();
+    let cpath: CombinePath = cpath.clone();
 
     // TODO
     let file_name = req.header("file-name").unwrap();
 
-    let mut file_path = format!("{}{}", dir_path, &file_name[0]);
-    let mut file_path = Path::new(&file_path);
-
-    log::info!("\nroot path: {}\nurl path: {}\nfile path: {:?}", root_path, url_path, file_path);
+    let file_path = format!("{}{}", cpath.dir_path(), &file_name[0]);
+    let file_path = Path::new(&file_path);
 
     log::info!("File Upload: URL PATH: {}", req.url());
     log::info!("Save file: {:?}", file_path);
@@ -157,9 +127,30 @@ async fn upload_file(req: tide::Request<State>) -> tide::Result<tide::Response> 
         .open(file_path)
         .await?;
 
-    let bytes_written = async_std::io::copy(req, file).await?;
+    let _ = async_std::io::copy(req, file).await?;
 
+    Ok(tide::Redirect::new(cpath.url_path()).into())
+}
 
+fn directory_checker<'a>(
+    mut req: tide::Request<State>,
+    next: tide::Next<'a, State>,
+) -> Pin<Box<dyn Future<Output = tide::Result> + Send + 'a>> {
+    Box::pin(async {
+        let root_path = req.state().root_path.to_string();
+        let url_path = req.url().path().to_string();
 
-    Ok(tide::Redirect::new(url_path).into())
+        if url_path.starts_with(SERVE_DIR_ROUTE) {
+            return Ok(next.run(req).await);
+        }
+
+        let combine_path = CombinePath::new(root_path, url_path);
+
+        if combine_path.is_dir().await {
+            req.set_ext(combine_path);
+            return Ok(next.run(req).await);
+        } else {
+            return Ok(tide::Response::new(404));
+        }
+    })
 }
