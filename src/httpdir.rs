@@ -7,15 +7,14 @@ use std::pin::Pin;
 
 use crate::args::Opt;
 use crate::dir::{Directory, FileGrouping, FileSort, MetaFile};
+use crate::page::Page;
 use crate::path::CombinePath;
 
 use async_std::fs;
 use futures::stream::TryStreamExt;
 
 const SERVE_DIR_PATH: &str = ".";
-const SERVE_DIR_ROUTE: &str = "/httpdir";
-
-const INDEX_HTML: &str = include_str!("../index.html");
+pub const SERVE_DIR_ROUTE: &str = "/httpdir";
 
 #[derive(Debug, Clone)]
 struct State {
@@ -76,30 +75,46 @@ async fn serve_dir_at_route(req: tide::Request<State>) -> tide::Result<tide::Res
         })
         .await?;
 
-    let mut entries_html = String::new();
-    for file in directory {
-        let (src, style) = if file.is_dir() {
-            (format!("{}{}", cpath.url_path(), file.name()), "directory")
-        } else {
-            (
-                format!("{}{}{}", SERVE_DIR_ROUTE, cpath.url_path(), file.name()),
-                "file",
-            )
-        };
+    // let mut entries_html = String::new();
+    // for file in directory {
+    //     let (src, style) = if file.is_dir() {
+    //         let sep = if cpath.is_root_url() {""} else {"/"};
+    //         (format!("{}{}{}", cpath.url_path(), sep, file.name()), "directory")
+    //     } else {
+    //         (
+    //             format!("{}{}{}", SERVE_DIR_ROUTE, cpath.url_path(), file.name()),
+    //             "file",
+    //         )
+    //     };
 
-        entries_html.push_str(&format!(
-            "<li class=\"{}\"><a href={}>{}</a></li>",
-            style,
-            src,
-            file.name()
-        ));
-    }
+    //     entries_html.push_str(&format!(
+    //         "<li class=\"{}\"><a href={}>{}</a></li>",
+    //         style,
+    //         src,
+    //         file.name()
+    //     ));
+    // }
 
-    let html = INDEX_HTML.replace("{LIST}", &entries_html);
+    // let mut path_href = String::new();
+
+    // let path_menu :String  = req.url().
+    //     path_segments().unwrap()
+    //     .map(|p| {
+    //         path_href.push_str(&format!("/{}", &p));
+    //         format!(r#" > <a href="{}">{}</a>"#, path_href, p)
+    //     })
+    //     .collect();
+
+    // let html = INDEX_HTML.replace("{PATHMENU}", &path_menu).
+    //     replace("{LIST}", &entries_html);
+
+    let page = Page::build(req.url(), &cpath)
+        .with_directory(directory)
+        .build();
 
     let response = tide::Response::builder(tide::StatusCode::Ok)
         .content_type(tide::http::mime::HTML)
-        .body(html)
+        .body(page.html())
         .build();
     Ok(response)
 }

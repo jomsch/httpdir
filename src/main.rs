@@ -4,6 +4,7 @@ extern crate log;
 mod args;
 mod dir;
 mod httpdir;
+mod page;
 mod path;
 
 use args::Opt;

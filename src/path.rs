@@ -9,7 +9,7 @@ pub struct CombinePath {
 
 impl CombinePath {
     pub fn new(root_path: String, url_path: String) -> Self {
-        let mut dir_path = format!("{}{}", &root_path, &url_path.trim_start_matches('/'));
+        let mut dir_path = format!("{}/{}", &root_path, &url_path.trim_start_matches('/'));
         if !dir_path.ends_with('/') {
             dir_path.push('/');
         }
@@ -34,5 +34,9 @@ impl CombinePath {
             Ok(md) if md.is_dir() => true,
             _ => false,
         }
+    }
+
+    pub fn is_root_url(&self) -> bool {
+        self.url_path == "/"
     }
 }
