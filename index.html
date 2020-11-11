@@ -1,0 +1,30 @@
+<html>
+	<head>
+		<script>
+			function upload() {
+				var fileinput = document.getElementById("fileupload")
+				if (fileinput.files.length > 0) {
+					var file = fileinput.files[0]; 
+					var filename = file.name;
+					var xmlHttpRequest = new XMLHttpRequest();
+					xmlHttpRequest.open('POST', window.location.pathname)
+					xmlHttpRequest.setRequestHeader('File-Name', filename)
+					xmlHttpRequest.setRequestHeader('Content-Type', 'application/octet-stream')
+					xmlHttpRequest.send(file)
+				}
+			}
+
+		</script>
+	</head>
+
+	<body>
+		<input type="file" id="fileupload"/>
+		<button value="Upload" onclick="upload()"/>Upload</button>
+		<br>
+		{PATHMENU}
+		<br>
+		<ul>
+			{LIST}
+		</ul>
+	</body>
+</html>
