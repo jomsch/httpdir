@@ -1,8 +1,8 @@
 # httpdir WIP,MVP
 
 Serve a directory over http.   
-Inspired from `python -m http.server`.  
-**Caution use httpdir only in secure/local networks**
+Inspired by `python -m http.server`.  
+**Caution! use httpdir only in secure/local networks**
 
 
 ## Features
